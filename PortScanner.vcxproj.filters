@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="socket.h">
+    <ClInclude Include="scanner.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
