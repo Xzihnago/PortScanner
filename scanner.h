@@ -11,7 +11,7 @@
 #include <iostream>
 #include <vector>
 
-constexpr int BATCH_SIZE = 12;   // Bitwise digits of the port number;
+constexpr int BATCH_SIZE = 8;   // Bitwise digits of the port number;
 
 bool is_init = false;
 
@@ -93,7 +93,7 @@ std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
     std::vector<unsigned short> ports;
     unsigned short port;
     for (int i = 0; i < 1 << (16 - BATCH_SIZE); i++) {
-        std::cout << "Batch: " << (i << BATCH_SIZE) << " ~ " << ((i + 1) << BATCH_SIZE) - 1 << "\n";
+        std::cout << "Scanning: " << (i << BATCH_SIZE) << " ~ " << ((i + 1) << BATCH_SIZE) - 1 << "\n";
         for (int j = 0; j < 1 << BATCH_SIZE; j++) {
             port = i << BATCH_SIZE | j;
             futs.push_back(
