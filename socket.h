@@ -11,7 +11,7 @@
 #include <iostream>
 #include <vector>
 
-#define BATCH_SIZE 12
+constexpr int BATCH_SIZE = 12;   // Bitwise digits of the port number;
 
 bool is_init = false;
 
@@ -48,7 +48,7 @@ Scanner::Scanner(int family, int type, int protocol) {
             std::cout << "WSAStartup failed: " << res << "\n";
         }
         else {
-            std::cout << "WSAStartup success: " << res << "\n";
+            std::cout << "WSAStartup success\n";
         }
         is_init = true;
     }
@@ -64,7 +64,7 @@ Scanner::Scanner(int family, int type, int protocol) {
 /// <returns>bool</returns>
 bool Scanner::is_open(std::string ip, unsigned short port) {
     // Set connection target
-    sockaddr_in target;
+    sockaddr_in target{};
     target.sin_family = _family;
     inet_pton(_family, ip.c_str(), &target.sin_addr);
     target.sin_port = htons(port);
@@ -74,13 +74,13 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
     if (sfd == INVALID_SOCKET) std::cout << "Create socket failed.\n";
 
     // Connect to target
-    bool is_open = false;
-    if (connect(sfd, (sockaddr*)&target, sizeof(target)) != SOCKET_ERROR) is_open = true;
+    bool is_port_open = false;
+    if (connect(sfd, (sockaddr*)&target, sizeof(target)) != SOCKET_ERROR) is_port_open = true;
 
     // Close socket
     closesocket(sfd);
 
-    return is_open;
+    return is_port_open;
 }
 
 
@@ -92,8 +92,8 @@ std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
     std::vector<std::future<void>> futs;
     std::vector<unsigned short> ports;
     unsigned short port;
-    for (int i = 0; i < 1 << 16 - BATCH_SIZE; i++) {
-        std::cout << "Batch: " << (i << BATCH_SIZE) << " ~ " << (i + 1 << BATCH_SIZE) - 1 << "\n";
+    for (int i = 0; i < 1 << (16 - BATCH_SIZE); i++) {
+        std::cout << "Batch: " << (i << BATCH_SIZE) << " ~ " << ((i + 1) << BATCH_SIZE) - 1 << "\n";
         for (int j = 0; j < 1 << BATCH_SIZE; j++) {
             port = i << BATCH_SIZE | j;
             futs.push_back(
