@@ -149,7 +149,7 @@ std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
     }
     std::cout << "Scan finish\n";
 
-    // Calculate open port
+    // Summon open ports list
     std::vector<unsigned short> res;
     for (size_t i = 0; i < ports.size(); i++) {
         if (ports[i]) res.push_back(i);
