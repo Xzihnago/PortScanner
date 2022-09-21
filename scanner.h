@@ -145,13 +145,13 @@ std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
                 if (is_open(ip, port)) ports[port] = true;
                 });
         }
-        for (std::future<void>& fut : futs) fut.get();
+        for (auto& fut : futs) fut.get();
     }
     std::cout << "Scan finish\n";
 
     // Calculate open port
     std::vector<unsigned short> res;
-    for (int i = 0; i < ports.size(); i++) {
+    for (size_t i = 0; i < ports.size(); i++) {
         if (ports[i]) res.push_back(i);
     }
     return res;

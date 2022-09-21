@@ -11,6 +11,6 @@ int main() {
     auto tend = chrono::steady_clock::now();
     cout << "Elapsed time: " << chrono::duration_cast<chrono::milliseconds>(tend - tstart).count() << "ms\n";
 
-    cout << "Open ports: " << ports.size() << " in total\n";
-    for (unsigned short& port : ports) cout << port << "\n";
+    cout << "Open ports (" << ports.size() << " in total):\n";
+    for (auto& port : ports) cout << port << "\n";
 }
