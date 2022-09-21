@@ -131,7 +131,7 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
 /// Scan all port
 /// </summary>
 /// <param name="ip"></param>
-std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
+std::vector<unsigned short> Scanner::scan_all_port(const std::string ip) {
     std::bitset<65536> ports;
 
     std::cout << "Scan all port of " << ip << "\n";
@@ -141,9 +141,7 @@ std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
         std::cout << "Scan batch " << t + 1 << " of " << BATCH_TIMES << ": " << pstart << " ~ " << pstart + BATCH_SIZE - 1 << "\n";
         for (int i = 0; i < BATCH_SIZE; i++) {
             int port = pstart | i;
-            futs[i] = std::async([this, &ports, ip, port]() {
-                if (is_open(ip, port)) ports[port] = true;
-                });
+            futs[i] = std::async([&, port]() { ports[port] = is_open(ip, port); });
         }
         for (auto& fut : futs) fut.get();
     }
