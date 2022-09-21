@@ -19,10 +19,6 @@ constexpr int BATCH_SIZE = 1 << BATCH_BITSIZE;          // TImes of scan batch s
 
 bool is_init = false;
 
-
-/// <summary>
-/// Socket object
-/// </summary>
 class Scanner {
 private:
     int _family, _type, _protocol;
@@ -35,12 +31,6 @@ public:
 };
 
 
-/// <summary>
-/// Create a socket
-/// </summary>
-/// <param name="family"></param>
-/// <param name="type"></param>
-/// <param name="protocol"></param>
 Scanner::Scanner(int family, int type, int protocol) {
     _family = family;
     _type = type;
@@ -63,7 +53,7 @@ Scanner::Scanner(int family, int type, int protocol) {
 
 
 /// <summary>
-/// Create a socket
+/// Create a socket.
 /// </summary>
 /// <returns>SOCKET</returns>
 SOCKET Scanner::create_socket(bool is_nonblock) {
@@ -84,13 +74,13 @@ SOCKET Scanner::create_socket(bool is_nonblock) {
 
 
 /// <summary>
-/// Create a sockaddr of in
+/// Create a sockaddr_in.
 /// </summary>
 /// <param name="ip"></param>
 /// <param name="port"></param>
-/// <returns>sockaddr</returns>
+/// <returns>sockaddr_in</returns>
 sockaddr_in Scanner::create_sockaddr_in(std::string ip, int port) {
-    sockaddr_in addr;
+    sockaddr_in addr{};
     addr.sin_family = _family;
     addr.sin_port = htons(port);
     inet_pton(_family, ip.c_str(), &addr.sin_addr);
@@ -106,12 +96,8 @@ sockaddr_in Scanner::create_sockaddr_in(std::string ip, int port) {
 /// <param name="port"></param>
 /// <returns>bool</returns>
 bool Scanner::is_open(std::string ip, unsigned short port) {
-    // Set connection target
-    //sockaddr_in target = create_sockaddr_in(ip, port);
-    sockaddr_in target;
-    target.sin_family = _family;
-    target.sin_port = htons(port);
-    inet_pton(_family, ip.c_str(), &target.sin_addr);
+    // Create sockaddr_in
+    sockaddr_in target = create_sockaddr_in(ip, port);
 
     // Create socket
     SOCKET sfd = create_socket(false);
@@ -128,7 +114,7 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
 
 
 /// <summary>
-/// Scan all port
+/// Scan all port.
 /// </summary>
 /// <param name="ip"></param>
 std::vector<unsigned short> Scanner::scan_all_port(const std::string ip) {
