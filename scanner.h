@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #endif
+#include <bitset>
 #include <future>
 #include <iostream>
 #include <vector>
@@ -129,25 +130,24 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
 /// </summary>
 /// <param name="ip"></param>
 std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
-    std::vector<bool> port_stat(65536, false);
+    std::bitset<65536> ports;
 
     std::vector<std::future<void>> futs(1 << BATCH_SIZE);
     for (int t = 0; t < 1 << (16 - BATCH_SIZE); t++) {
         std::cout << "Scanning: " << (t << BATCH_SIZE) << " ~ " << ((t + 1) << BATCH_SIZE) - 1 << "\n";
         for (int i = 0; i < 1 << BATCH_SIZE; i++) {
             unsigned short port = t << BATCH_SIZE | i;
-            futs[i] = std::async([this, ip, port, &port_stat]() {
-                std::cout << port << "\n";
-                if (is_open(ip, port)) port_stat[port] = true;
+            futs[i] = std::async([this, &ports, ip, port]() {
+                if (is_open(ip, port)) ports[port] = true;
                 });
         }
-        //for (std::future<void>& fut : futs) fut.get();
+        for (std::future<void>& fut : futs) fut.get();
     }
 
     // Calculate open port
     std::vector<unsigned short> res;
-    for (int i = 0; i < port_stat.size(); i++) {
-        if (port_stat[i]) res.push_back(i);
+    for (int i = 0; i < ports.size(); i++) {
+        if (ports[i]) res.push_back(i);
     }
     return res;
 }
