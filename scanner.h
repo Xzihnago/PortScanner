@@ -5,8 +5,8 @@
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 #else
-#include <sys/socket.h>
 #include <fcntl.h>
+#include <sys/socket.h>
 #endif
 #include <bitset>
 #include <future>
@@ -40,13 +40,14 @@ Scanner::Scanner(int family, int type, int protocol) {
     // Initialize Ws2_32.lib
     if (!is_init) {
         WSADATA wsadata;
-        if (int res = WSAStartup(MAKEWORD(2, 2), &wsadata) != NO_ERROR) {
-            std::cout << "WSAStartup failed: " << res << "\n";
-        }
-        else {
-            std::cout << "WSAStartup success\n";
-        }
+        if (int res = WSAStartup(MAKEWORD(2, 2), &wsadata) != NO_ERROR) std::cout << "WSAStartup failed (" << res << ")\n";
+        else std::cout << "WSAStartup success\n";
         is_init = true;
+
+        atexit([]() {
+            if (int res = WSACleanup() != NO_ERROR) std::cout << "WSACleanup failed (" << res << ")\n";
+            else std::cout << "WSACleanup success\n";
+            });
     }
 #endif
 }
@@ -58,18 +59,25 @@ Scanner::Scanner(int family, int type, int protocol) {
 /// <returns>SOCKET</returns>
 SOCKET Scanner::create_socket(bool is_nonblock) {
     SOCKET sfd = socket(_family, _type, _protocol);
-    if (sfd == INVALID_SOCKET) std::cout << "Create socket failed.\n";
+
+    if (sfd == INVALID_SOCKET) {
+#ifdef _WIN32
+        std::cout << "Create socket failed (" << WSAGetLastError() << ")\n";
+#else
+        std::cout << "Create socket failed\n";
+#endif
+        return INVALID_SOCKET;
+    }
     else {
         // Setup socket block mode
 #ifdef _WIN32
         unsigned long sockmode = is_nonblock;
-        if (int res = ioctlsocket(sfd, FIONBIO, &sockmode) != NO_ERROR) std::cout << "ioctlsocket failed: " << res << "\n";
+        if (int res = ioctlsocket(sfd, FIONBIO, &sockmode) != NO_ERROR) std::cout << "ioctlsocket failed (" << res << ")\n";
 #else
-        fcntl(sfd, F_SETFL, O_NONBLOCK);
+        if (is_nonblock && (int res = fcntl(sfd, F_SETFL, O_NONBLOCK)) != NO_ERROR) std::cout << "ioctlsocket failed (" << res << ")\n";
 #endif
+        return sfd;
     }
-
-    return sfd;
 }
 
 
@@ -106,8 +114,16 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
     bool is_port_open = false;
     if (connect(sfd, (sockaddr*)&target, sizeof(target)) != SOCKET_ERROR) is_port_open = true;
 
+    
+    //select(sfd, nullptr, nullptr, nullptr, nullptr);
+    //WSAAsyncSelect(sfd, NULL, 0, 0);
+
     // Close socket
-    closesocket(sfd);
+#ifdef _WIN32
+    if (closesocket(sfd) != NO_ERROR) std::cout << "closesocket failed (" << WSAGetLastError() << ")\n";
+#else
+    if (int res = closesocket(sfd) != NO_ERROR) std::cout << "closesocket failed (" << res << ")\n";
+#endif
 
     return is_port_open;
 }
@@ -135,7 +151,7 @@ std::vector<unsigned short> Scanner::scan_all_port(const std::string ip) {
 
     // Summon open ports list
     std::vector<unsigned short> res;
-    for (size_t i = 0; i < ports.size(); i++) {
+    for (int i = 0; i < 65536; i++) {
         if (ports[i]) res.push_back(i);
     }
     return res;
