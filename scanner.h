@@ -13,7 +13,9 @@
 #include <iostream>
 #include <vector>
 
-constexpr int BATCH_SIZE = 16;   // Bitwise digits of the port amount, max value is 16
+constexpr int BATCH_BITSIZE = 16;                        // Bitwise digits of the port amount, max value is 16
+constexpr int BATCH_TIMES = 1 << (16 - BATCH_BITSIZE);  // Times of scan batch
+constexpr int BATCH_SIZE = 1 << BATCH_BITSIZE;          // TImes of scan batch size
 
 bool is_init = false;
 
@@ -132,17 +134,20 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
 std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
     std::bitset<65536> ports;
 
-    std::vector<std::future<void>> futs(1 << BATCH_SIZE);
-    for (int t = 0; t < 1 << (16 - BATCH_SIZE); t++) {
-        std::cout << "Scanning: " << (t << BATCH_SIZE) << " ~ " << ((t + 1) << BATCH_SIZE) - 1 << "\n";
-        for (int i = 0; i < 1 << BATCH_SIZE; i++) {
-            unsigned short port = t << BATCH_SIZE | i;
+    std::cout << "Scan all port of " << ip << "\n";
+    std::vector<std::future<void>> futs(BATCH_SIZE);
+    for (int t = 0; t < BATCH_TIMES; t++) {
+        int pstart = t << BATCH_BITSIZE;
+        std::cout << "Scan batch " << t + 1 << " of " << BATCH_TIMES << ": " << pstart << " ~ " << pstart + BATCH_SIZE - 1 << "\n";
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            int port = pstart | i;
             futs[i] = std::async([this, &ports, ip, port]() {
                 if (is_open(ip, port)) ports[port] = true;
                 });
         }
         for (std::future<void>& fut : futs) fut.get();
     }
+    std::cout << "Scan finish\n";
 
     // Calculate open port
     std::vector<unsigned short> res;
