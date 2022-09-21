@@ -6,12 +6,13 @@
 #include <WS2tcpip.h>
 #else
 #include <sys/socket.h>
+#include <fcntl.h>
 #endif
 #include <future>
 #include <iostream>
 #include <vector>
 
-constexpr int BATCH_SIZE = 8;   // Bitwise digits of the port number;
+constexpr int BATCH_SIZE = 16;   // Bitwise digits of the port amount, max value is 16
 
 bool is_init = false;
 
@@ -24,6 +25,8 @@ private:
     int _family, _type, _protocol;
 public:
     Scanner(int family, int type, int protocol);
+    SOCKET create_socket(bool is_nonblock);
+    sockaddr_in create_sockaddr_in(std::string ip, int port);
     bool is_open(std::string ip, unsigned short port);
     std::vector<unsigned short> scan_all_port(std::string ip);
 };
@@ -44,7 +47,7 @@ Scanner::Scanner(int family, int type, int protocol) {
     // Initialize Ws2_32.lib
     if (!is_init) {
         WSADATA wsadata;
-        if (int res = WSAStartup(MAKEWORD(2, 2), &wsadata)) {
+        if (int res = WSAStartup(MAKEWORD(2, 2), &wsadata) != NO_ERROR) {
             std::cout << "WSAStartup failed: " << res << "\n";
         }
         else {
@@ -57,6 +60,43 @@ Scanner::Scanner(int family, int type, int protocol) {
 
 
 /// <summary>
+/// Create a socket
+/// </summary>
+/// <returns>SOCKET</returns>
+SOCKET Scanner::create_socket(bool is_nonblock) {
+    SOCKET sfd = socket(_family, _type, _protocol);
+    if (sfd == INVALID_SOCKET) std::cout << "Create socket failed.\n";
+    else {
+        // Setup socket block mode
+#ifdef _WIN32
+        unsigned long sockmode = is_nonblock;
+        if (int res = ioctlsocket(sfd, FIONBIO, &sockmode) != NO_ERROR) std::cout << "ioctlsocket failed: " << res << "\n";
+#else
+        fcntl(sfd, F_SETFL, O_NONBLOCK);
+#endif
+    }
+
+    return sfd;
+}
+
+
+/// <summary>
+/// Create a sockaddr of in
+/// </summary>
+/// <param name="ip"></param>
+/// <param name="port"></param>
+/// <returns>sockaddr</returns>
+sockaddr_in Scanner::create_sockaddr_in(std::string ip, int port) {
+    sockaddr_in addr;
+    addr.sin_family = _family;
+    addr.sin_port = htons(port);
+    inet_pton(_family, ip.c_str(), &addr.sin_addr);
+
+    return addr;
+}
+
+
+/// <summary>
 /// Check if the port is open.
 /// </summary>
 /// <param name="ip"></param>
@@ -64,14 +104,14 @@ Scanner::Scanner(int family, int type, int protocol) {
 /// <returns>bool</returns>
 bool Scanner::is_open(std::string ip, unsigned short port) {
     // Set connection target
-    sockaddr_in target{};
+    //sockaddr_in target = create_sockaddr_in(ip, port);
+    sockaddr_in target;
     target.sin_family = _family;
-    inet_pton(_family, ip.c_str(), &target.sin_addr);
     target.sin_port = htons(port);
+    inet_pton(_family, ip.c_str(), &target.sin_addr);
 
     // Create socket
-    SOCKET sfd = socket(_family, _type, _protocol);
-    if (sfd == INVALID_SOCKET) std::cout << "Create socket failed.\n";
+    SOCKET sfd = create_socket(false);
 
     // Connect to target
     bool is_port_open = false;
@@ -89,21 +129,25 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
 /// </summary>
 /// <param name="ip"></param>
 std::vector<unsigned short> Scanner::scan_all_port(std::string ip) {
-    std::vector<std::future<void>> futs;
-    std::vector<unsigned short> ports;
-    unsigned short port;
-    for (int i = 0; i < 1 << (16 - BATCH_SIZE); i++) {
-        std::cout << "Scanning: " << (i << BATCH_SIZE) << " ~ " << ((i + 1) << BATCH_SIZE) - 1 << "\n";
-        for (int j = 0; j < 1 << BATCH_SIZE; j++) {
-            port = i << BATCH_SIZE | j;
-            futs.push_back(
-                std::async([this, ip, port, &ports]() {
-                    if (is_open(ip, port)) ports.push_back(port);
-                    })
-            );
+    std::vector<bool> port_stat(65536, false);
+
+    std::vector<std::future<void>> futs(1 << BATCH_SIZE);
+    for (int t = 0; t < 1 << (16 - BATCH_SIZE); t++) {
+        std::cout << "Scanning: " << (t << BATCH_SIZE) << " ~ " << ((t + 1) << BATCH_SIZE) - 1 << "\n";
+        for (int i = 0; i < 1 << BATCH_SIZE; i++) {
+            unsigned short port = t << BATCH_SIZE | i;
+            futs[i] = std::async([this, ip, port, &port_stat]() {
+                std::cout << port << "\n";
+                if (is_open(ip, port)) port_stat[port] = true;
+                });
         }
-        for (std::future<void>& fut : futs) fut.get();
-        futs.clear();
+        //for (std::future<void>& fut : futs) fut.get();
     }
-    return ports;
+
+    // Calculate open port
+    std::vector<unsigned short> res;
+    for (int i = 0; i < port_stat.size(); i++) {
+        if (port_stat[i]) res.push_back(i);
+    }
+    return res;
 }
