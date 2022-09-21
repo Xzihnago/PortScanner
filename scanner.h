@@ -13,9 +13,10 @@
 #include <iostream>
 #include <vector>
 
-constexpr int BATCH_BITSIZE = 16;                        // Bitwise digits of the port amount, max value is 16
-constexpr int BATCH_TIMES = 1 << (16 - BATCH_BITSIZE);  // Times of scan batch
-constexpr int BATCH_SIZE = 1 << BATCH_BITSIZE;          // TImes of scan batch size
+constexpr bool IS_NONBLOCK = false;
+constexpr int BATCH_BITSIZE = 16; // Bitwise digits of the port amount, max value is 16
+constexpr int BATCH_TIMES = 1 << (16 - BATCH_BITSIZE); // Times of scan batch
+constexpr int BATCH_SIZE = 1 << BATCH_BITSIZE; // TImes of scan batch size
 
 bool is_init = false;
 
@@ -24,7 +25,7 @@ private:
     int _family, _type, _protocol;
 public:
     Scanner(int family, int type, int protocol);
-    SOCKET create_socket(bool is_nonblock);
+    SOCKET create_socket();
     sockaddr_in create_sockaddr_in(std::string ip, int port);
     bool is_open(std::string ip, unsigned short port);
     std::vector<unsigned short> scan_all_port(std::string ip);
@@ -57,7 +58,7 @@ Scanner::Scanner(int family, int type, int protocol) {
 /// Create a socket.
 /// </summary>
 /// <returns>SOCKET</returns>
-SOCKET Scanner::create_socket(bool is_nonblock) {
+SOCKET Scanner::create_socket() {
     SOCKET sfd = socket(_family, _type, _protocol);
 
     if (sfd == INVALID_SOCKET) {
@@ -71,7 +72,7 @@ SOCKET Scanner::create_socket(bool is_nonblock) {
     else {
         // Setup socket block mode
 #ifdef _WIN32
-        unsigned long sockmode = is_nonblock;
+        unsigned long sockmode = IS_NONBLOCK;
         if (int res = ioctlsocket(sfd, FIONBIO, &sockmode) != NO_ERROR) std::cout << "ioctlsocket failed (" << res << ")\n";
 #else
         if (is_nonblock && (int res = fcntl(sfd, F_SETFL, O_NONBLOCK)) != NO_ERROR) std::cout << "ioctlsocket failed (" << res << ")\n";
@@ -108,15 +109,32 @@ bool Scanner::is_open(std::string ip, unsigned short port) {
     sockaddr_in target = create_sockaddr_in(ip, port);
 
     // Create socket
-    SOCKET sfd = create_socket(false);
+    SOCKET sfd = create_socket();
 
     // Connect to target
     bool is_port_open = false;
-    if (connect(sfd, (sockaddr*)&target, sizeof(target)) != SOCKET_ERROR) is_port_open = true;
+    if (IS_NONBLOCK) { // TODO
+        connect(sfd, (sockaddr*)&target, sizeof(target));
 
-    
-    //select(sfd, nullptr, nullptr, nullptr, nullptr);
-    //WSAAsyncSelect(sfd, NULL, 0, 0);
+        timeval tv{};
+        tv.tv_sec = 10;
+
+        fd_set rfds{};
+        FD_SET(sfd, &rfds);
+        switch (select(sfd + 1, &rfds, nullptr, nullptr, nullptr))
+        {
+        case 0:
+            // Timeout
+            std::cout << "Timeout\n";
+            break;
+        case SOCKET_ERROR:
+            std::cout << "Connect failed\n";
+            break;
+        default:
+            break;
+        }
+    }
+    else if (connect(sfd, (sockaddr*)&target, sizeof(target)) != SOCKET_ERROR) is_port_open = true;
 
     // Close socket
 #ifdef _WIN32
